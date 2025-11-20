@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Chat Ollama</title>
+  <style>
+    body { font-family: Arial; background: #f2f2f2; margin: 0; }
+    #chat { max-width: 700px; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; }
+    .msg { margin-bottom: 10px; padding: 10px; border-radius: 8px; }
+    .user { background: #d1e8ff; text-align: right; }
+    .bot { background: #e8e8e8; }
+    .thinking { font-style: italic; opacity: 0.6; }
+  </style>
+</head>
+<body>
+  <div id="chat"></div>
+
+  <div style="max-width:700px;margin:10px auto;display:flex;gap:10px;">
+    <input id="input" placeholder="Tuliskan pesan..." style="flex:1;padding:12px;">
+    <button onclick="sendChat()" style="padding:12px;">Kirim</button>
+  </div>
+
+<script>
+async function sendChat() {
+  const input = document.getElementById("input");
+  const text = input.value;
+  input.value = "";
+
+  // tampilkan pesan user
+  addMessage(text, "user");
+
+  // tampilkan bubble thinking
+  const thinkingBubble = addMessage("Thinking...", "bot thinking");
+
+  const response = await fetch("http://localhost:3000/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: text })
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  let botMsg = "";
+  let botElement = null;
+  let firstChunk = true;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n");
+
+    lines.forEach(line => {
+      if (line.startsWith("data: ")) {
+        const content = line.replace("data: ", "");
+        if (content === "[DONE]") return;
+
+        if (firstChunk) {
+          // hapus bubble thinking dan ganti dengan bubble bot asli
+          thinkingBubble.remove();
+          botElement = addMessage("", "bot");
+          firstChunk = false;
+        }
+
+        botMsg += content;
+        botElement.innerText = botMsg;
+      }
+    });
+  }
+}
+
+function addMessage(text, type) {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = `msg ${type}`;
+  div.innerText = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+</script>
+
+</body>
+</html>
